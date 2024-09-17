@@ -4,7 +4,7 @@ Collaborations are welcome!
 
 Thanks to @alanverbner for the inspiration on our first encounter.
 
-Live at [learning.theredguild.org](https://learning.theredguild.org)
+Live at [learn.theredguild.org](https://learn.theredguild.org)
 
 ## Running locally
 ```bash
