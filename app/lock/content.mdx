@@ -1,0 +1,252 @@
+## !intro Lock.sol
+Este es un ejemplo de un contrato de bloqueo (`Lock.sol`) utilizando el framework HardHat. A lo largo de este tutorial, construiremos este contrato paso a paso, explicando cada componente clave.
+
+## !!steps Licencia SPDX
+Antes de comenzar con el contrato, es buena práctica agregar un comentario con el identificador de licencia `SPDX`, lo cual es obligatorio en Solidity para especificar la licencia del código fuente. Usamos `MIT` como licencia de código abierto.
+
+```solidity ! Lock.sol
+// SPDX-License-Identifier: MIT
+
+```
+
+## !!steps Versión de Solidity
+Para que el compilador sepa qué versión de Solidity utilizar, debemos especificar la versión del compilador con la declaración `pragma solidity`. En este caso, permitimos cualquier versión igual o superior a `0.8.29`, pero inferior a `0.9.0`.
+
+```solidity ! Lock.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+```
+
+## !!steps Declaración del contrato
+Declaramos nuestro contrato utilizando la palabra reservada `contract`. Este es el bloque base de cualquier contrato en Solidity.
+
+```solidity ! Lock.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+contract Lock {
+
+}
+```
+
+## !!steps Variables de estado
+Añadimos una variable de estado llamada `unlockTime`. Las variables de estado se almacenan en la blockchain y persisten entre las llamadas de función. Aquí, `unlockTime` almacenará el momento en el cual se podrá desbloquear el contrato.
+
+```solidity ! Lock.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+contract Lock {
+    uint public unlockTime;
+}
+```
+
+## !!steps Constructor del contrato
+Añadimos un `constructor`, que es una función especial que se ejecuta solo una vez cuando se despliega el contrato. Aquí, permitimos que se pase un parámetro `_unlockTime` para establecer el valor de `unlockTime` al momento de la creación del contrato. Marcamos el constructor como `payable` para permitir que se envíen fondos al momento del despliegue.
+
+```solidity ! Lock.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+contract Lock {
+    uint public unlockTime;
+
+    constructor(uint _unlockTime) payable {
+        unlockTime = _unlockTime;
+    }
+}
+```
+
+## !!steps Propietario del contrato
+Añadimos una variable de estado llamada `owner` para almacenar la dirección del propietario del contrato. Asignamos esta dirección en el constructor, utilizando `msg.sender`, que es la dirección que despliega el contrato. Usamos `payable` en el tipo `address` porque luego enviaremos fondos a esta dirección.
+
+```solidity ! Lock.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+contract Lock {
+    uint public unlockTime;
+    address payable public owner;
+
+    constructor(uint _unlockTime) payable {
+        unlockTime = _unlockTime;
+        owner = payable(msg.sender);
+    }
+}
+```
+
+## !!steps Validación del constructor
+Agregamos una validación en el constructor utilizando `require`. Esto asegura que el tiempo de desbloqueo esté en el futuro. Si la condición no se cumple, la transacción se revierte con un mensaje de error.
+
+```solidity ! Lock.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+contract Lock {
+    uint public unlockTime;
+    address payable public owner;
+
+    constructor(uint _unlockTime) payable {
+        require(
+            block.timestamp < _unlockTime,
+            "Unlock time should be in the future"
+        );
+        unlockTime = _unlockTime;
+        owner = payable(msg.sender);
+    }
+}
+```
+
+## !!steps Evento de retiro
+Añadimos un evento llamado `Withdrawal` para registrar información sobre cada retiro realizado desde el contrato. Los eventos son fundamentales en Solidity porque permiten que aplicaciones externas escuchen y reaccionen a las acciones del contrato.
+
+```solidity ! Lock.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+contract Lock {
+    uint public unlockTime;
+    address payable public owner;
+
+    event Withdrawal(uint amount, uint when);
+
+    constructor(uint _unlockTime) payable {
+        require(
+            block.timestamp < _unlockTime,
+            "Unlock time should be in the future"
+        );
+        unlockTime = _unlockTime;
+        owner = payable(msg.sender);
+    }
+}
+```
+
+## !!steps Función de retiro (básica)
+Añadimos una función `withdraw()` que permite al propietario retirar los fondos del contrato. Por ahora, la función transfiere todo el saldo sin restricciones adicionales.
+
+```solidity ! Lock.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+contract Lock {
+    uint public unlockTime;
+    address payable public owner;
+
+    event Withdrawal(uint amount, uint when);
+
+    constructor(uint _unlockTime) payable {
+        require(
+            block.timestamp < _unlockTime,
+            "Unlock time should be in the future"
+        );
+        unlockTime = _unlockTime;
+        owner = payable(msg.sender);
+    }
+
+    function withdraw() public {
+        owner.transfer(address(this).balance);
+    }
+}
+```
+
+## !!steps Restricción de tiempo en retiro
+Añadimos una validación en la función `withdraw()` utilizando `require`. Esto asegura que los fondos solo se puedan retirar después de que se haya alcanzado `unlockTime`.
+
+```solidity ! Lock.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+contract Lock {
+    uint public unlockTime;
+    address payable public owner;
+
+    event Withdrawal(uint amount, uint when);
+
+    constructor(uint _unlockTime) payable {
+        require(
+            block.timestamp < _unlockTime,
+            "Unlock time should be in the future"
+        );
+        unlockTime = _unlockTime;
+        owner = payable(msg.sender);
+    }
+
+    function withdraw() public {
+        require(block.timestamp >= unlockTime, "You can't withdraw yet");
+        owner.transfer(address(this).balance);
+    }
+}
+```
+
+## !!steps Restricción de propietario en retiro
+Añadimos una validación adicional para asegurarnos de que solo el propietario del contrato pueda realizar el retiro.
+
+```solidity ! Lock.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+contract Lock {
+    uint public unlockTime;
+    address payable public owner;
+
+    event Withdrawal(uint amount, uint when);
+
+    constructor(uint _unlockTime) payable {
+        require(
+            block.timestamp < _unlockTime,
+            "Unlock time should be in the future"
+        );
+        unlockTime = _unlockTime;
+        owner = payable(msg.sender);
+    }
+
+    function withdraw() public {
+        require(block.timestamp >= unlockTime, "You can't withdraw yet");
+        require(msg.sender == owner, "You aren't the owner");
+        owner.transfer(address(this).balance);
+    }
+}
+```
+
+## !!steps Patrón Checks-Effects-Interactions (CEI)
+Ahora refactorizamos la función `withdraw()` para seguir el patrón **Checks-Effects-Interactions** (CEI), una de las prácticas de seguridad más importantes en Solidity. Este patrón establece que toda función debe: primero, verificar condiciones (**checks**); segundo, actualizar el estado del contrato (**effects**); y tercero, interactuar con contratos externos o enviar ETH (**interactions**).
+
+En la versión anterior, emitíamos el evento `Withdrawal` después de `owner.transfer()`, lo que significa que `address(this).balance` ya era 0 al momento de registrar el monto. Esto es un error sutil. Para corregirlo, guardamos el monto en una variable local **antes** de transferir, emitimos el evento con el monto correcto, y luego realizamos la transferencia.
+
+```solidity ! Lock.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+contract Lock {
+    uint public unlockTime;
+    address payable public owner;
+
+    event Withdrawal(uint amount, uint when);
+
+    constructor(uint _unlockTime) payable {
+        require(
+            block.timestamp < _unlockTime,
+            "Unlock time should be in the future"
+        );
+        unlockTime = _unlockTime;
+        owner = payable(msg.sender);
+    }
+
+    function withdraw() public {
+        // Checks
+        require(block.timestamp >= unlockTime, "You can't withdraw yet");
+        require(msg.sender == owner, "You aren't the owner");
+
+        // Effects
+        uint amount = address(this).balance;
+        emit Withdrawal(amount, block.timestamp);
+
+        // Interactions
+        owner.transfer(amount);
+    }
+}
+```
+
+## !outro Lock.sol
+Hemos completado el contrato `Lock.sol`. Este contrato es un ejemplo sencillo pero efectivo de cómo bloquear fondos en un contrato inteligente hasta un tiempo específico. Hemos cubierto las partes fundamentales de un contrato en Solidity: declaración de variables, constructores con validación, funciones con restricciones, eventos, y el patrón **Checks-Effects-Interactions** (CEI). Este patrón es esencial para prevenir vulnerabilidades de reentrada (reentrancy) y es una de las prácticas de seguridad más importantes en el desarrollo de contratos inteligentes.

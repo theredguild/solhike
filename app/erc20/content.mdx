@@ -1,0 +1,177 @@
+## !intro ERC20.sol
+Este es un ejemplo de un contrato ERC20 (`ERC20.sol`) utilizando OpenZeppelin y el framework HardHat. A lo largo de este tutorial, construiremos este contrato paso a paso, explicando cada componente clave.
+
+## !!steps Licencia SPDX
+Antes de comenzar con el contrato, es buena práctica agregar un comentario con el identificador de licencia `SPDX`, lo cual es obligatorio en Solidity para especificar la licencia del código fuente. Usamos `MIT` como licencia de código abierto.
+
+```solidity ! ERC20.sol
+// SPDX-License-Identifier: MIT
+
+```
+
+## !!steps Versión de Solidity
+Para que el compilador sepa qué versión de Solidity utilizar, debemos especificar la versión del compilador con la declaración `pragma solidity`. Esto asegura que el contrato se compile correctamente solo con versiones compatibles del compilador.
+
+```solidity ! ERC20.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+```
+
+## !!steps Declaración del contrato
+Declaramos nuestro contrato utilizando la palabra reservada `contract`. Este es el bloque base de cualquier contrato en Solidity. En este caso, el contrato implementará el estándar ERC20.
+
+```solidity ! ERC20.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+contract MyToken {
+
+}
+```
+
+## !!steps Importar la implementación estándar de ERC20
+Importamos la implementación estándar de `ERC20` desde OpenZeppelin. Esto nos permite utilizar todas las funciones que conforman el estándar ERC20 en nuestro contrato, como `transfer`, `balanceOf`, `approve`, etc. Hacemos que nuestro contrato herede de `ERC20` utilizando la palabra clave `is`.
+
+```solidity ! ERC20.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+
+contract MyToken is ERC20 {
+
+}
+```
+
+## !!steps Constructor y mint inicial
+Añadimos un `constructor`, que se ejecuta solo una vez cuando se despliega el contrato. Inicializamos el nombre y el símbolo del token utilizando el constructor de `ERC20`, y realizamos la asignación inicial de tokens al `msg.sender` mediante `_mint`. La función `decimals()` devuelve 18 por defecto, que es el estándar para la mayoría de los tokens ERC20.
+
+```solidity ! ERC20.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+
+contract MyToken is ERC20 {
+    constructor() ERC20("MyToken", "MTK") {
+        _mint(msg.sender, 1000000 * 10 ** decimals());
+    }
+}
+```
+
+## !!steps Restricción de minting con Ownable
+Añadimos una función pública llamada `mint`, que permite crear nuevos tokens. Para evitar que cualquier usuario cree tokens arbitrariamente, restringimos esta función al propietario del contrato utilizando la biblioteca `Ownable` de OpenZeppelin. En OpenZeppelin v5, `Ownable` requiere una dirección `initialOwner` en su constructor, lo que hace que la propiedad sea explícita en lugar de asumida.
+
+```solidity ! ERC20.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract MyToken is ERC20, Ownable {
+    constructor() ERC20("MyToken", "MTK") Ownable(msg.sender) {
+        _mint(msg.sender, 1000000 * 10 ** decimals());
+    }
+
+    function mint(address to, uint256 amount) public onlyOwner {
+        _mint(to, amount);
+    }
+}
+```
+
+## !!steps Aprobar y transferir con allowance
+El estándar ERC20 incluye un mecanismo de aprobación (`approve`/`allowance`) que permite a un propietario autorizar a otra dirección a gastar una cantidad de tokens en su nombre. Esto es esencial para el funcionamiento de los exchanges descentralizados (DEX) y los protocolos DeFi. El contrato `ERC20` de OpenZeppelin ya implementa `approve`, `allowance` y `transferFrom`, por lo que no necesitamos añadir código adicional. La función `transferFrom` permite al `spender` transferir tokens del `owner` siempre que tenga suficiente `allowance`.
+
+```solidity ! ERC20.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract MyToken is ERC20, Ownable {
+    constructor() ERC20("MyToken", "MTK") Ownable(msg.sender) {
+        _mint(msg.sender, 1000000 * 10 ** decimals());
+    }
+
+    function mint(address to, uint256 amount) public onlyOwner {
+        _mint(to, amount);
+    }
+
+    // Las funciones approve, allowance y transferFrom ya están
+    // implementadas en ERC20 y heredadas automáticamente.
+}
+```
+
+## !!steps Añadir capacidad de pausado
+Añadimos la capacidad de pausar las funciones del contrato en caso de emergencia, utilizando el contrato `Pausable` de OpenZeppelin. En v5, `Pausable` se importa desde `utils/Pausable.sol` (antes estaba en `security/`). Esto nos permite detener las transferencias de tokens en situaciones críticas. `Pausable` provee los modificadores `whenNotPaused` y `whenPaused`, así como las funciones internas `_pause()` y `_unpause()`.
+
+```solidity ! ERC20.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
+
+contract MyToken is ERC20, Ownable, Pausable {
+    constructor() ERC20("MyToken", "MTK") Ownable(msg.sender) {
+        _mint(msg.sender, 1000000 * 10 ** decimals());
+    }
+
+    function mint(address to, uint256 amount) public onlyOwner {
+        _mint(to, amount);
+    }
+
+    function pause() public onlyOwner {
+        _pause();
+    }
+
+    function unpause() public onlyOwner {
+        _unpause();
+    }
+}
+```
+
+## !!steps Sobrescribir _update para integrar pausado
+En OpenZeppelin v5, el hook correcto para controlar transferencias, mints y burns es `_update`, que reemplaza al antiguo `_beforeTokenTransfer`. Sobrescribimos esta función interna con el modificador `whenNotPaused`, lo que garantiza que ninguna transferencia, mint ni burn pueda ocurrir mientras el contrato esté pausado. Llamamos a `super._update` para mantener el comportamiento original de ERC20.
+
+```solidity ! ERC20.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
+
+contract MyToken is ERC20, Ownable, Pausable {
+    constructor() ERC20("MyToken", "MTK") Ownable(msg.sender) {
+        _mint(msg.sender, 1000000 * 10 ** decimals());
+    }
+
+    function mint(address to, uint256 amount) public onlyOwner {
+        _mint(to, amount);
+    }
+
+    function pause() public onlyOwner {
+        _pause();
+    }
+
+    function unpause() public onlyOwner {
+        _unpause();
+    }
+
+    function _update(address from, address to, uint256 value)
+        internal
+        override
+        whenNotPaused
+    {
+        super._update(from, to, value);
+    }
+}
+```
+
+## !outro ERC20.sol
+Hemos completado el contrato `ERC20.sol`. Este contrato implementa un token ERC20 completo siguiendo el estándar más utilizado en Ethereum, con las extensiones de `Ownable` (control de acceso), `Pausable` (capacidad de emergencia) y funciones de minting restringidas. Hemos cubierto cómo el estándar ERC20 incluye el mecanismo de `approve`/`allowance`/`transferFrom` esencial para la interacción con protocolos DeFi, y cómo en OpenZeppelin v5 se utiliza `_update` en lugar de `_beforeTokenTransfer` para los hooks de transferencia. Este contrato es una base sólida para construir funcionalidades más avanzadas en tokens fungibles.

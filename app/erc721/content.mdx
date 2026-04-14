@@ -1,0 +1,225 @@
+## !intro NFT.sol
+Este es un ejemplo de un contrato ERC721 (`NFT.sol`) que implementa tokens no fungibles (NFTs) utilizando OpenZeppelin. A lo largo de este tutorial, construiremos este contrato paso a paso, explicando cada componente clave.
+
+## !!steps Licencia SPDX
+Antes de comenzar con el contrato, es buena práctica agregar un comentario con el identificador de licencia `SPDX`, lo cual es obligatorio en Solidity para especificar la licencia del código fuente. Usamos `MIT` como licencia de código abierto.
+
+```solidity ! NFT.sol
+// SPDX-License-Identifier: MIT
+
+```
+
+## !!steps Versión de Solidity
+Para que el compilador sepa qué versión de Solidity utilizar, debemos especificar la versión del compilador con la declaración `pragma solidity`. Esto asegura que el contrato se compile correctamente solo con versiones compatibles del compilador.
+
+```solidity ! NFT.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+```
+
+## !!steps Declaración del contrato
+Declaramos nuestro contrato utilizando la palabra reservada `contract`. Este es el bloque base de cualquier contrato en Solidity. En este caso, el contrato implementará el estándar ERC721 para tokens no fungibles (NFTs).
+
+```solidity ! NFT.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+contract MyNFT {
+
+}
+```
+
+## !!steps Importar la implementación estándar de ERC721
+Importamos la implementación estándar de `ERC721` desde OpenZeppelin. Esto nos permite utilizar todas las funciones que conforman el estándar ERC721 en nuestro contrato, como `transferFrom`, `ownerOf`, `balanceOf`, etc. Hacemos que nuestro contrato herede de `ERC721`.
+
+```solidity ! NFT.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+
+contract MyNFT is ERC721 {
+
+}
+```
+
+## !!steps Constructor del contrato
+Añadimos un `constructor`, que es una función especial que se ejecuta solo una vez cuando se despliega el contrato. Aquí, inicializamos el nombre y el símbolo del NFT utilizando el constructor de `ERC721`.
+
+```solidity ! NFT.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+
+contract MyNFT is ERC721 {
+    constructor() ERC721("MyNFT", "MNFT") {}
+}
+```
+
+## !!steps Restringir la función de minting con Ownable
+Para evitar que cualquier usuario pueda crear tokens arbitrariamente, restringimos la función de minting al propietario del contrato. Utilizamos la biblioteca `Ownable` de OpenZeppelin para gestionar esta propiedad. En OpenZeppelin v5, `Ownable` requiere una dirección `initialOwner` en su constructor, haciendo que la propiedad sea explícita.
+
+```solidity ! NFT.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract MyNFT is ERC721, Ownable {
+    constructor() ERC721("MyNFT", "MNFT") Ownable(msg.sender) {}
+
+    function mintNFT(address to, uint256 tokenId) public onlyOwner {
+        _mint(to, tokenId);
+    }
+}
+```
+
+## !!steps Metadatos de los tokens con ERC721URIStorage
+Añadimos la capacidad de definir y asignar metadatos a cada token NFT utilizando la extensión `ERC721URIStorage` de OpenZeppelin. Los metadatos son típicamente una URL que apunta a un archivo JSON que describe el NFT, incluyendo su nombre, descripción y otros atributos. Esta extensión proporciona la función interna `_setTokenURI` para almacenar el URI de cada token, y automáticamente maneja la concatenación con un `_baseURI` si está configurado.
+
+```solidity ! NFT.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract MyNFT is ERC721, ERC721URIStorage, Ownable {
+    constructor() ERC721("MyNFT", "MNFT") Ownable(msg.sender) {}
+
+    function mintNFT(address to, uint256 tokenId, string memory uri) public onlyOwner {
+        _mint(to, tokenId);
+        _setTokenURI(tokenId, uri);
+    }
+
+    function tokenURI(uint256 tokenId)
+        public
+        view
+        override(ERC721, ERC721URIStorage)
+        returns (string memory)
+    {
+        return super.tokenURI(tokenId);
+    }
+
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        override(ERC721, ERC721URIStorage)
+        returns (bool)
+    {
+        return super.supportsInterface(interfaceId);
+    }
+}
+```
+
+## !!steps Capacidad de pausado del contrato
+Añadimos la capacidad de pausar el contrato en situaciones críticas, utilizando la extensión `Pausable` de OpenZeppelin. Esto nos permite detener las transferencias de tokens en caso de emergencia. En OpenZeppelin v5, `Pausable` se importa desde `utils/Pausable.sol`.
+
+```solidity ! NFT.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
+
+contract MyNFT is ERC721, ERC721URIStorage, Ownable, Pausable {
+    constructor() ERC721("MyNFT", "MNFT") Ownable(msg.sender) {}
+
+    function mintNFT(address to, uint256 tokenId, string memory uri) public onlyOwner {
+        _mint(to, tokenId);
+        _setTokenURI(tokenId, uri);
+    }
+
+    function tokenURI(uint256 tokenId)
+        public
+        view
+        override(ERC721, ERC721URIStorage)
+        returns (string memory)
+    {
+        return super.tokenURI(tokenId);
+    }
+
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        override(ERC721, ERC721URIStorage)
+        returns (bool)
+    {
+        return super.supportsInterface(interfaceId);
+    }
+
+    function pause() public onlyOwner {
+        _pause();
+    }
+
+    function unpause() public onlyOwner {
+        _unpause();
+    }
+}
+```
+
+## !!steps Sobrescribir _update para integrar pausado
+En OpenZeppelin v5, el hook correcto para controlar transferencias, mints y burns en ERC721 es `_update`, que reemplaza al antiguo `_beforeTokenTransfer`. Sobrescribimos esta función interna con el modificador `whenNotPaused`, lo que garantiza que ninguna transferencia, mint ni burn pueda ocurrir mientras el contrato esté pausado. La función `_update` en ERC721 recibe los parámetros `(address to, uint256 tokenId, address auth)` y devuelve la dirección del propietario anterior.
+
+```solidity ! NFT.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
+
+contract MyNFT is ERC721, ERC721URIStorage, Ownable, Pausable {
+    constructor() ERC721("MyNFT", "MNFT") Ownable(msg.sender) {}
+
+    function mintNFT(address to, uint256 tokenId, string memory uri) public onlyOwner {
+        _mint(to, tokenId);
+        _setTokenURI(tokenId, uri);
+    }
+
+    function tokenURI(uint256 tokenId)
+        public
+        view
+        override(ERC721, ERC721URIStorage)
+        returns (string memory)
+    {
+        return super.tokenURI(tokenId);
+    }
+
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        override(ERC721, ERC721URIStorage)
+        returns (bool)
+    {
+        return super.supportsInterface(interfaceId);
+    }
+
+    function pause() public onlyOwner {
+        _pause();
+    }
+
+    function unpause() public onlyOwner {
+        _unpause();
+    }
+
+    function _update(address to, uint256 tokenId, address auth)
+        internal
+        override(ERC721, ERC721URIStorage)
+        whenNotPaused
+        returns (address)
+    {
+        return super._update(to, tokenId, auth);
+    }
+}
+```
+
+## !outro NFT.sol
+Hemos completado el contrato `NFT.sol`. Este contrato implementa un token ERC721 completo siguiendo el estándar más utilizado en Ethereum, con las extensiones de `ERC721URIStorage` (gestión de metadatos), `Ownable` (control de acceso) y `Pausable` (capacidad de emergencia). Hemos cubierto cómo en OpenZeppelin v5 se utiliza `_update` en lugar de `_beforeTokenTransfer` para los hooks de transferencia en ERC721, y cómo las múltiples herencias requieren especificar explícitamente las funciones sobrescritas con `override(ERC721, ERC721URIStorage)`. Este contrato proporciona una base sólida para construir funcionalidades más avanzadas en tokens no fungibles.

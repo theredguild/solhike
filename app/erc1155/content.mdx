@@ -1,0 +1,300 @@
+## !intro GameItems.sol
+Este es un ejemplo de un contrato ERC-1155 (`GameItems.sol`) que implementa el estándar Multi-Token. A diferencia de ERC-20 (tokens fungibles) y ERC-721 (tokens no fungibles), ERC-1155 permite manejar múltiples tipos de tokens en un solo contrato, incluyendo tanto tokens fungibles como no fungibles. Esto lo hace ideal para juegos y aplicaciones donde se necesitan diferentes tipos de activos. A lo largo de este tutorial, construiremos este contrato paso a paso, explicando cada componente clave.
+
+## !!steps Licencia SPDX y versión de Solidity
+Comenzamos con el identificador de licencia `SPDX` y la declaración de la versión de Solidity. Estos son requerimientos indispensables en todo contrato Solidity. Usamos `MIT` como licencia de código abierto y la versión `^0.8.29` del compilador.
+
+```solidity ! GameItems.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+```
+
+## !!steps Declaración del contrato e importación de ERC1155
+Importamos la implementación estándar de `ERC1155` desde OpenZeppelin y declaramos nuestro contrato `GameItems` que hereda de ella. El estándar ERC-1155 nos permite manejar múltiples tipos de tokens (fungibles y no fungibles) en un solo contrato, lo que lo hace mucho más gas-eficiente que desplegar contratos separados para cada tipo de token.
+
+```solidity ! GameItems.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+
+contract GameItems is ERC1155 {
+
+}
+```
+
+## !!steps Constructor con URI base
+Añadimos un `constructor` que recibe la dirección del propietario inicial y configura la URI base para los metadatos de los tokens. En ERC-1155, la URI funciona como plantilla: el placeholder `{id}` es reemplazado por el identificador del token cuando se consulta `uri(tokenId)`. También heredamos de `Ownable` pasando la dirección del propietario inicial, que en OpenZeppelin v5 es un parámetro obligatorio del constructor.
+
+```solidity ! GameItems.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract GameItems is ERC1155, Ownable {
+    constructor() ERC1155("https://game.example/api/item/{id}.json") Ownable(msg.sender) {}
+}
+```
+
+## !!steps Definición de constantes para tipos de tokens
+Definimos constantes para cada tipo de token que nuestro contrato gestionará. En este ejemplo, `GOLD` y `SILVER` son tokens fungibles (se pueden fraccionar), mientras que `THORS_HAMMER` es un token no fungible (solo existe una unidad). `SWORD` y `SHIELD` son tokens fungibles con cantidades mayores. Las constantes nos permiten referenciar cada tipo de token por un nombre legible en lugar de un número.
+
+```solidity ! GameItems.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract GameItems is ERC1155, Ownable {
+    uint256 public constant GOLD = 0;
+    uint256 public constant SILVER = 1;
+    uint256 public constant THORS_HAMMER = 2;
+    uint256 public constant SWORD = 3;
+    uint256 public constant SHIELD = 4;
+
+    constructor() ERC1155("https://game.example/api/item/{id}.json") Ownable(msg.sender) {}
+}
+```
+
+## !!steps Mint inicial en el constructor
+Realizamos la asignación inicial de tokens al desplegador del contrato utilizando la función `_mint` de ERC-1155. Cada llamada a `_mint` recibe la dirección de destino, el ID del token, la cantidad y datos adicionales. `_mintBatch` permite crear múltiples tokens en una sola transacción, lo cual es más gas-eficiente que múltiples llamadas a `_mint`.
+
+```solidity ! GameItems.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract GameItems is ERC1155, Ownable {
+    uint256 public constant GOLD = 0;
+    uint256 public constant SILVER = 1;
+    uint256 public constant THORS_HAMMER = 2;
+    uint256 public constant SWORD = 3;
+    uint256 public constant SHIELD = 4;
+
+    constructor() ERC1155("https://game.example/api/item/{id}.json") Ownable(msg.sender) {
+        _mint(msg.sender, GOLD, 10 ** 18, "");
+        _mint(msg.sender, SILVER, 10 ** 27, "");
+        _mint(msg.sender, THORS_HAMMER, 1, "");
+        _mint(msg.sender, SWORD, 10 ** 9, "");
+        _mint(msg.sender, SHIELD, 10 ** 9, "");
+    }
+}
+```
+
+## !!steps Función de minting restringida al propietario
+Añadimos una función pública `mint` que permite al propietario crear nuevos tokens de cualquier tipo. La función `_mint` de ERC-1155 recibe cuatro parámetros: la dirección de destino, el ID del token, la cantidad a crear, y datos adicionales (vacíos en este caso). Restringimos esta función con el modificador `onlyOwner` para que solo el propietario pueda crear nuevos tokens, evitando la inflación descontrolada.
+
+```solidity ! GameItems.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract GameItems is ERC1155, Ownable {
+    uint256 public constant GOLD = 0;
+    uint256 public constant SILVER = 1;
+    uint256 public constant THORS_HAMMER = 2;
+    uint256 public constant SWORD = 3;
+    uint256 public constant SHIELD = 4;
+
+    constructor() ERC1155("https://game.example/api/item/{id}.json") Ownable(msg.sender) {
+        _mint(msg.sender, GOLD, 10 ** 18, "");
+        _mint(msg.sender, SILVER, 10 ** 27, "");
+        _mint(msg.sender, THORS_HAMMER, 1, "");
+        _mint(msg.sender, SWORD, 10 ** 9, "");
+        _mint(msg.sender, SHIELD, 10 ** 9, "");
+    }
+
+    function mint(address to, uint256 id, uint256 amount, bytes memory data) public onlyOwner {
+        _mint(to, id, amount, data);
+    }
+}
+```
+
+## !!steps Minting por lote (batch mint)
+Añadimos la función `mintBatch` que permite al propietario crear múltiples tipos de tokens en una sola transacción. Esto es una de las grandes ventajas de ERC-1155 sobre ERC-20 y ERC-721: la posibilidad de realizar operaciones por lote, lo que ahorra significantes costos de gas cuando se necesitan crear varios tokens a la vez.
+
+```solidity ! GameItems.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract GameItems is ERC1155, Ownable {
+    uint256 public constant GOLD = 0;
+    uint256 public constant SILVER = 1;
+    uint256 public constant THORS_HAMMER = 2;
+    uint256 public constant SWORD = 3;
+    uint256 public constant SHIELD = 4;
+
+    constructor() ERC1155("https://game.example/api/item/{id}.json") Ownable(msg.sender) {
+        _mint(msg.sender, GOLD, 10 ** 18, "");
+        _mint(msg.sender, SILVER, 10 ** 27, "");
+        _mint(msg.sender, THORS_HAMMER, 1, "");
+        _mint(msg.sender, SWORD, 10 ** 9, "");
+        _mint(msg.sender, SHIELD, 10 ** 9, "");
+    }
+
+    function mint(address to, uint256 id, uint256 amount, bytes memory data) public onlyOwner {
+        _mint(to, id, amount, data);
+    }
+
+    function mintBatch(address to, uint256[] memory ids, uint256[] memory amounts, bytes memory data) public onlyOwner {
+        _mintBatch(to, ids, amounts, data);
+    }
+}
+```
+
+## !!steps Actualización dinámica de URI
+Añadimos una función `setURI` que permite al propietario actualizar la URI base de los metadatos. Esto es útil cuando necesitamos cambiar la ubicación de los metadatos, por ejemplo al migrar de un servidor a IPFS o al actualizar la estructura de URLs. La función interna `_setURI` de ERC-1155 permite modificar la URI sin necesidad de redirigir.
+
+```solidity ! GameItems.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract GameItems is ERC1155, Ownable {
+    uint256 public constant GOLD = 0;
+    uint256 public constant SILVER = 1;
+    uint256 public constant THORS_HAMMER = 2;
+    uint256 public constant SWORD = 3;
+    uint256 public constant SHIELD = 4;
+
+    constructor() ERC1155("https://game.example/api/item/{id}.json") Ownable(msg.sender) {
+        _mint(msg.sender, GOLD, 10 ** 18, "");
+        _mint(msg.sender, SILVER, 10 ** 27, "");
+        _mint(msg.sender, THORS_HAMMER, 1, "");
+        _mint(msg.sender, SWORD, 10 ** 9, "");
+        _mint(msg.sender, SHIELD, 10 ** 9, "");
+    }
+
+    function mint(address to, uint256 id, uint256 amount, bytes memory data) public onlyOwner {
+        _mint(to, id, amount, data);
+    }
+
+    function mintBatch(address to, uint256[] memory ids, uint256[] memory amounts, bytes memory data) public onlyOwner {
+        _mintBatch(to, ids, amounts, data);
+    }
+
+    function setURI(string memory newuri) public onlyOwner {
+        _setURI(newuri);
+    }
+}
+```
+
+## !!steps Capacidad de pausado para emergencias
+Añadimos la capacidad de pausar el contrato en situaciones críticas, utilizando la extensión `Pausable` de OpenZeppelin. Esto nos permite detener las transferencias de tokens en caso de emergencia. En OpenZeppelin v5, importamos `Pausable` desde `utils/Pausable.sol`. Creamos las funciones `pause` y `unpause` restringidas al propietario.
+
+```solidity ! GameItems.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
+
+contract GameItems is ERC1155, Ownable, Pausable {
+    uint256 public constant GOLD = 0;
+    uint256 public constant SILVER = 1;
+    uint256 public constant THORS_HAMMER = 2;
+    uint256 public constant SWORD = 3;
+    uint256 public constant SHIELD = 4;
+
+    constructor() ERC1155("https://game.example/api/item/{id}.json") Ownable(msg.sender) {
+        _mint(msg.sender, GOLD, 10 ** 18, "");
+        _mint(msg.sender, SILVER, 10 ** 27, "");
+        _mint(msg.sender, THORS_HAMMER, 1, "");
+        _mint(msg.sender, SWORD, 10 ** 9, "");
+        _mint(msg.sender, SHIELD, 10 ** 9, "");
+    }
+
+    function mint(address to, uint256 id, uint256 amount, bytes memory data) public onlyOwner {
+        _mint(to, id, amount, data);
+    }
+
+    function mintBatch(address to, uint256[] memory ids, uint256[] memory amounts, bytes memory data) public onlyOwner {
+        _mintBatch(to, ids, amounts, data);
+    }
+
+    function setURI(string memory newuri) public onlyOwner {
+        _setURI(newuri);
+    }
+
+    function pause() public onlyOwner {
+        _pause();
+    }
+
+    function unpause() public onlyOwner {
+        _unpause();
+    }
+}
+```
+
+## !!steps Sobrescribir _update para integrar pausado
+En OpenZeppelin v5, el hook para controlar transferencias, mints y burns en ERC-1155 es `_update`. Sobrescribimos esta función interna con el modificador `whenNotPaused`, lo que garantiza que ninguna transferencia, mint ni burn pueda ocurrir mientras el contrato esté pausado. La función `_update` en ERC-1155 recibe arrays de IDs y valores, ya que maneja operaciones por lote. Llamamos a `super._update` para mantener el comportamiento original.
+
+```solidity ! GameItems.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
+
+contract GameItems is ERC1155, Ownable, Pausable {
+    uint256 public constant GOLD = 0;
+    uint256 public constant SILVER = 1;
+    uint256 public constant THORS_HAMMER = 2;
+    uint256 public constant SWORD = 3;
+    uint256 public constant SHIELD = 4;
+
+    constructor() ERC1155("https://game.example/api/item/{id}.json") Ownable(msg.sender) {
+        _mint(msg.sender, GOLD, 10 ** 18, "");
+        _mint(msg.sender, SILVER, 10 ** 27, "");
+        _mint(msg.sender, THORS_HAMMER, 1, "");
+        _mint(msg.sender, SWORD, 10 ** 9, "");
+        _mint(msg.sender, SHIELD, 10 ** 9, "");
+    }
+
+    function mint(address to, uint256 id, uint256 amount, bytes memory data) public onlyOwner {
+        _mint(to, id, amount, data);
+    }
+
+    function mintBatch(address to, uint256[] memory ids, uint256[] memory amounts, bytes memory data) public onlyOwner {
+        _mintBatch(to, ids, amounts, data);
+    }
+
+    function setURI(string memory newuri) public onlyOwner {
+        _setURI(newuri);
+    }
+
+    function pause() public onlyOwner {
+        _pause();
+    }
+
+    function unpause() public onlyOwner {
+        _unpause();
+    }
+
+    function _update(address from, address to, uint256[] memory ids, uint256[] memory values)
+        internal
+        override
+        whenNotPaused
+    {
+        super._update(from, to, ids, values);
+    }
+}
+```
+
+## !outro GameItems.sol
+Hemos completado el contrato `GameItems.sol`. Este contrato implementa un token ERC-1155 completo que demuestra la potencia del estándar Multi-Token: un solo contrato gestiona múltiples tipos de tokens (fungibles como oro y plata, y no fungibles como el martillo de Thor). Hemos cubierto las características clave de ERC-1155: minting individual y por lote (`_mint` y `_mintBatch`), URI dinámica para metadatos, control de acceso con `Ownable`, y la capacidad de emergencia con `Pausable` integrado mediante la sobrescritura de `_update`. Este contrato es una base sólida para construir juegos, marketplaces y cualquier aplicación que necesite gestionar múltiples tipos de activos en la blockchain.

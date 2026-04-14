@@ -9,7 +9,7 @@ Live at [learning.theredguild.org](https://learning.theredguild.org)
 ## Running locally
 ```bash
 pnpm install
-npx run dev
+pnpm dev
 ```
 
 

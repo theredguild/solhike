@@ -6,8 +6,7 @@ import {
   Selectable,
   SelectionProvider,
 } from "codehike/utils/selection"
-import Content from "./content.md"
-import Link from "next/link"
+import Content from "./content.mdx"
 import { tokenTransitions } from "../components/annotations/token-transitions"
 
 const Schema = Block.extend({
@@ -20,7 +19,6 @@ export default function Page() {
   const { intro, steps, outro } = parseRoot(Content, Schema)
   return (
     <main>
-      <Link href="/">Back</Link>
       <h1 className="mt-8">{intro.title}</h1>
       {intro.children}
       <SelectionProvider className="flex gap-4">
@@ -37,7 +35,7 @@ export default function Page() {
             </Selectable>
           ))}
         </div>
-        <div className="w-[40vw] max-w-xl bg-zinc-900">
+        <div className="w-[55%] min-w-[320px] bg-zinc-900">
           <div className="top-4 sticky overflow-auto">
             <Selection
               from={steps.map((step) => (

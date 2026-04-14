@@ -1,0 +1,657 @@
+## !intro MultisigWallet.sol
+Este contrato Multisig Wallet (`MultisigWallet.sol`) permite a múltiples propietarios aprobar y ejecutar transacciones. La seguridad se incrementa al requerir un número mínimo de confirmaciones antes de ejecutar una transacción, evitando que un solo punto de falla comprometa los fondos del contrato.
+
+## !!steps Licencia SPDX y versión de Solidity
+Comenzamos con el identificador de licencia `SPDX` y la declaración de la versión de Solidity. Estos son requerimientos indispensables en todo contrato Solidity.
+
+```solidity ! MultisigWallet.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+```
+
+## !!steps Declaración del contrato y variables de estado
+Definimos el contrato `MultisigWallet` y las variables de estado principales: `owners` almacena las direcciones de los propietarios del contrato, y `requiredConfirmations` indica cuántas confirmaciones se necesitan para ejecutar una transacción.
+
+```solidity ! MultisigWallet.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+contract MultisigWallet {
+    address[] public owners;
+    uint public requiredConfirmations;
+}
+```
+
+## !!steps Estructura de transacciones
+Definimos la estructura `Transaction`, que representa una transacción propuesta. Incluye la dirección de destino (`to`), el valor en ETH (`value`), los datos de la llamada (`data`), si la transacción ha sido ejecutada (`executed`), y el número de confirmaciones recibidas (`numConfirmations`). También creamos el array `transactions` para almacenar todas las transacciones propuestas.
+
+```solidity ! MultisigWallet.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+contract MultisigWallet {
+    address[] public owners;
+    uint public requiredConfirmations;
+
+    struct Transaction {
+        address to;
+        uint value;
+        bytes data;
+        bool executed;
+        uint numConfirmations;
+    }
+
+    Transaction[] public transactions;
+}
+```
+
+## !!steps Constructor con validación
+Añadimos un `constructor` que recibe la lista de propietarios y el número requerido de confirmaciones. Incluimos validaciones críticas: que no esté vacío, que el número de confirmaciones sea válido, que no haya propietarios duplicados y que ninguna dirección sea cero.
+
+```solidity ! MultisigWallet.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+contract MultisigWallet {
+    address[] public owners;
+    uint public requiredConfirmations;
+
+    struct Transaction {
+        address to;
+        uint value;
+        bytes data;
+        bool executed;
+        uint numConfirmations;
+    }
+
+    Transaction[] public transactions;
+
+    constructor(address[] memory _owners, uint _requiredConfirmations) {
+        require(_owners.length > 0, "Owners required");
+        require(
+            _requiredConfirmations > 0 && _requiredConfirmations <= _owners.length,
+            "Invalid number of required confirmations"
+        );
+
+        for (uint i = 0; i < _owners.length; i++) {
+            address owner = _owners[i];
+            require(owner != address(0), "Invalid owner");
+            require(!isOwner[owner], "Owner not unique");
+            isOwner[owner] = true;
+            owners.push(owner);
+        }
+
+        requiredConfirmations = _requiredConfirmations;
+    }
+}
+```
+
+## !!steps Mapping de propietarios
+Añadimos el mapping `isOwner` que nos permite verificar rápidamente si una dirección es propietaria del contrato. Esto es esencial para las validaciones de acceso en las funciones del contrato.
+
+```solidity ! MultisigWallet.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+contract MultisigWallet {
+    address[] public owners;
+    uint public requiredConfirmations;
+    mapping(address => bool) public isOwner;
+
+    struct Transaction {
+        address to;
+        uint value;
+        bytes data;
+        bool executed;
+        uint numConfirmations;
+    }
+
+    Transaction[] public transactions;
+
+    constructor(address[] memory _owners, uint _requiredConfirmations) {
+        require(_owners.length > 0, "Owners required");
+        require(
+            _requiredConfirmations > 0 && _requiredConfirmations <= _owners.length,
+            "Invalid number of required confirmations"
+        );
+
+        for (uint i = 0; i < _owners.length; i++) {
+            address owner = _owners[i];
+            require(owner != address(0), "Invalid owner");
+            require(!isOwner[owner], "Owner not unique");
+            isOwner[owner] = true;
+            owners.push(owner);
+        }
+
+        requiredConfirmations = _requiredConfirmations;
+    }
+}
+```
+
+## !!steps Modificador de acceso
+Creamos el modificador `onlyOwner` para restringir el acceso a ciertas funciones solo a los propietarios del contrato. Este modificador utiliza el mapping `isOwner` para verificar que el llamante sea un propietario válido.
+
+```solidity ! MultisigWallet.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+contract MultisigWallet {
+    address[] public owners;
+    uint public requiredConfirmations;
+    mapping(address => bool) public isOwner;
+
+    struct Transaction {
+        address to;
+        uint value;
+        bytes data;
+        bool executed;
+        uint numConfirmations;
+    }
+
+    Transaction[] public transactions;
+
+    modifier onlyOwner() {
+        require(isOwner[msg.sender], "Not owner");
+        _;
+    }
+
+    constructor(address[] memory _owners, uint _requiredConfirmations) {
+        require(_owners.length > 0, "Owners required");
+        require(
+            _requiredConfirmations > 0 && _requiredConfirmations <= _owners.length,
+            "Invalid number of required confirmations"
+        );
+
+        for (uint i = 0; i < _owners.length; i++) {
+            address owner = _owners[i];
+            require(owner != address(0), "Invalid owner");
+            require(!isOwner[owner], "Owner not unique");
+            isOwner[owner] = true;
+            owners.push(owner);
+        }
+
+        requiredConfirmations = _requiredConfirmations;
+    }
+}
+```
+
+## !!steps Eventos
+Definimos los eventos del contrato. Los eventos son fundamentales en Solidity porque permiten que aplicaciones externas escuchen y reaccionen a las acciones del contrato. Emitimos eventos cuando se envía, confirma, revoca o ejecuta una transacción, lo que proporciona trazabilidad completa de todas las operaciones.
+
+```solidity ! MultisigWallet.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+contract MultisigWallet {
+    address[] public owners;
+    uint public requiredConfirmations;
+    mapping(address => bool) public isOwner;
+
+    struct Transaction {
+        address to;
+        uint value;
+        bytes data;
+        bool executed;
+        uint numConfirmations;
+    }
+
+    Transaction[] public transactions;
+
+    event TransactionSubmitted(uint indexed txIndex, address indexed owner, address to, uint value, bytes data);
+    event TransactionConfirmed(uint indexed txIndex, address indexed owner);
+    event TransactionRevoked(uint indexed txIndex, address indexed owner);
+    event TransactionExecuted(uint indexed txIndex);
+
+    modifier onlyOwner() {
+        require(isOwner[msg.sender], "Not owner");
+        _;
+    }
+
+    constructor(address[] memory _owners, uint _requiredConfirmations) {
+        require(_owners.length > 0, "Owners required");
+        require(
+            _requiredConfirmations > 0 && _requiredConfirmations <= _owners.length,
+            "Invalid number of required confirmations"
+        );
+
+        for (uint i = 0; i < _owners.length; i++) {
+            address owner = _owners[i];
+            require(owner != address(0), "Invalid owner");
+            require(!isOwner[owner], "Owner not unique");
+            isOwner[owner] = true;
+            owners.push(owner);
+        }
+
+        requiredConfirmations = _requiredConfirmations;
+    }
+}
+```
+
+## !!steps Envío de transacciones
+Añadimos la función `submitTransaction`, que permite a un propietario proponer una nueva transacción. La transacción se añade al array `transactions` con estado inicial `executed = false` y `numConfirmations = 0`. Emitimos el evento correspondiente.
+
+```solidity ! MultisigWallet.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+contract MultisigWallet {
+    address[] public owners;
+    uint public requiredConfirmations;
+    mapping(address => bool) public isOwner;
+
+    struct Transaction {
+        address to;
+        uint value;
+        bytes data;
+        bool executed;
+        uint numConfirmations;
+    }
+
+    Transaction[] public transactions;
+
+    event TransactionSubmitted(uint indexed txIndex, address indexed owner, address to, uint value, bytes data);
+    event TransactionConfirmed(uint indexed txIndex, address indexed owner);
+    event TransactionRevoked(uint indexed txIndex, address indexed owner);
+    event TransactionExecuted(uint indexed txIndex);
+
+    modifier onlyOwner() {
+        require(isOwner[msg.sender], "Not owner");
+        _;
+    }
+
+    constructor(address[] memory _owners, uint _requiredConfirmations) {
+        require(_owners.length > 0, "Owners required");
+        require(
+            _requiredConfirmations > 0 && _requiredConfirmations <= _owners.length,
+            "Invalid number of required confirmations"
+        );
+
+        for (uint i = 0; i < _owners.length; i++) {
+            address owner = _owners[i];
+            require(owner != address(0), "Invalid owner");
+            require(!isOwner[owner], "Owner not unique");
+            isOwner[owner] = true;
+            owners.push(owner);
+        }
+
+        requiredConfirmations = _requiredConfirmations;
+    }
+
+    function submitTransaction(address _to, uint _value, bytes memory _data) public onlyOwner {
+        uint txIndex = transactions.length;
+        transactions.push(Transaction({
+            to: _to,
+            value: _value,
+            data: _data,
+            executed: false,
+            numConfirmations: 0
+        }));
+        emit TransactionSubmitted(txIndex, msg.sender, _to, _value, _data);
+    }
+}
+```
+
+## !!steps Confirmación de transacciones con protección contra duplicados
+Añadimos la función `confirmTransaction`, que permite a los propietarios confirmar una transacción. Incluimos dos validaciones importantes: que la transacción no haya sido ejecutada, y que el propietario no haya confirmado previamente (prevención de confirmaciones duplicadas). También creamos el mapping `confirmations` para rastrear qué propietarios han confirmado cada transacción.
+
+```solidity ! MultisigWallet.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+contract MultisigWallet {
+    address[] public owners;
+    uint public requiredConfirmations;
+    mapping(address => bool) public isOwner;
+
+    struct Transaction {
+        address to;
+        uint value;
+        bytes data;
+        bool executed;
+        uint numConfirmations;
+    }
+
+    Transaction[] public transactions;
+    mapping(uint => mapping(address => bool)) public confirmations;
+
+    event TransactionSubmitted(uint indexed txIndex, address indexed owner, address to, uint value, bytes data);
+    event TransactionConfirmed(uint indexed txIndex, address indexed owner);
+    event TransactionRevoked(uint indexed txIndex, address indexed owner);
+    event TransactionExecuted(uint indexed txIndex);
+
+    modifier onlyOwner() {
+        require(isOwner[msg.sender], "Not owner");
+        _;
+    }
+
+    constructor(address[] memory _owners, uint _requiredConfirmations) {
+        require(_owners.length > 0, "Owners required");
+        require(
+            _requiredConfirmations > 0 && _requiredConfirmations <= _owners.length,
+            "Invalid number of required confirmations"
+        );
+
+        for (uint i = 0; i < _owners.length; i++) {
+            address owner = _owners[i];
+            require(owner != address(0), "Invalid owner");
+            require(!isOwner[owner], "Owner not unique");
+            isOwner[owner] = true;
+            owners.push(owner);
+        }
+
+        requiredConfirmations = _requiredConfirmations;
+    }
+
+    function submitTransaction(address _to, uint _value, bytes memory _data) public onlyOwner {
+        uint txIndex = transactions.length;
+        transactions.push(Transaction({
+            to: _to,
+            value: _value,
+            data: _data,
+            executed: false,
+            numConfirmations: 0
+        }));
+        emit TransactionSubmitted(txIndex, msg.sender, _to, _value, _data);
+    }
+
+    function confirmTransaction(uint _txIndex) public onlyOwner {
+        Transaction storage transaction = transactions[_txIndex];
+        require(!transaction.executed, "Transaction already executed");
+        require(!confirmations[_txIndex][msg.sender], "Transaction already confirmed");
+
+        confirmations[_txIndex][msg.sender] = true;
+        transaction.numConfirmations += 1;
+        emit TransactionConfirmed(_txIndex, msg.sender);
+    }
+}
+```
+
+## !!steps Ejecución de transacciones
+Añadimos la función `executeTransaction`, que permite ejecutar una transacción una vez que ha recibido el número necesario de confirmaciones. Esta función marca la transacción como ejecutada antes de realizar la llamada externa, siguiendo el patrón **Checks-Effects-Interactions** para prevenir ataques de reentrada. Utilizamos `call` para enviar ETH y ejecutar datos de contrato.
+
+```solidity ! MultisigWallet.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+contract MultisigWallet {
+    address[] public owners;
+    uint public requiredConfirmations;
+    mapping(address => bool) public isOwner;
+
+    struct Transaction {
+        address to;
+        uint value;
+        bytes data;
+        bool executed;
+        uint numConfirmations;
+    }
+
+    Transaction[] public transactions;
+    mapping(uint => mapping(address => bool)) public confirmations;
+
+    event TransactionSubmitted(uint indexed txIndex, address indexed owner, address to, uint value, bytes data);
+    event TransactionConfirmed(uint indexed txIndex, address indexed owner);
+    event TransactionRevoked(uint indexed txIndex, address indexed owner);
+    event TransactionExecuted(uint indexed txIndex);
+
+    modifier onlyOwner() {
+        require(isOwner[msg.sender], "Not owner");
+        _;
+    }
+
+    constructor(address[] memory _owners, uint _requiredConfirmations) {
+        require(_owners.length > 0, "Owners required");
+        require(
+            _requiredConfirmations > 0 && _requiredConfirmations <= _owners.length,
+            "Invalid number of required confirmations"
+        );
+
+        for (uint i = 0; i < _owners.length; i++) {
+            address owner = _owners[i];
+            require(owner != address(0), "Invalid owner");
+            require(!isOwner[owner], "Owner not unique");
+            isOwner[owner] = true;
+            owners.push(owner);
+        }
+
+        requiredConfirmations = _requiredConfirmations;
+    }
+
+    function submitTransaction(address _to, uint _value, bytes memory _data) public onlyOwner {
+        uint txIndex = transactions.length;
+        transactions.push(Transaction({
+            to: _to,
+            value: _value,
+            data: _data,
+            executed: false,
+            numConfirmations: 0
+        }));
+        emit TransactionSubmitted(txIndex, msg.sender, _to, _value, _data);
+    }
+
+    function confirmTransaction(uint _txIndex) public onlyOwner {
+        Transaction storage transaction = transactions[_txIndex];
+        require(!transaction.executed, "Transaction already executed");
+        require(!confirmations[_txIndex][msg.sender], "Transaction already confirmed");
+
+        confirmations[_txIndex][msg.sender] = true;
+        transaction.numConfirmations += 1;
+        emit TransactionConfirmed(_txIndex, msg.sender);
+    }
+
+    function executeTransaction(uint _txIndex) public onlyOwner {
+        Transaction storage transaction = transactions[_txIndex];
+        require(!transaction.executed, "Transaction already executed");
+        require(transaction.numConfirmations >= requiredConfirmations, "Cannot execute tx: not enough confirmations");
+
+        transaction.executed = true;
+
+        (bool success, ) = transaction.to.call{value: transaction.value}(transaction.data);
+        require(success, "Transaction failed");
+
+        emit TransactionExecuted(_txIndex);
+    }
+}
+```
+
+## !!steps Revocación de confirmaciones
+Añadimos la función `revokeConfirmation`, que permite a un propietario revocar su confirmación antes de que la transacción sea ejecutada. Esto aumenta la flexibilidad del sistema y permite correcciones en caso de errores.
+
+```solidity ! MultisigWallet.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+contract MultisigWallet {
+    address[] public owners;
+    uint public requiredConfirmations;
+    mapping(address => bool) public isOwner;
+
+    struct Transaction {
+        address to;
+        uint value;
+        bytes data;
+        bool executed;
+        uint numConfirmations;
+    }
+
+    Transaction[] public transactions;
+    mapping(uint => mapping(address => bool)) public confirmations;
+
+    event TransactionSubmitted(uint indexed txIndex, address indexed owner, address to, uint value, bytes data);
+    event TransactionConfirmed(uint indexed txIndex, address indexed owner);
+    event TransactionRevoked(uint indexed txIndex, address indexed owner);
+    event TransactionExecuted(uint indexed txIndex);
+
+    modifier onlyOwner() {
+        require(isOwner[msg.sender], "Not owner");
+        _;
+    }
+
+    constructor(address[] memory _owners, uint _requiredConfirmations) {
+        require(_owners.length > 0, "Owners required");
+        require(
+            _requiredConfirmations > 0 && _requiredConfirmations <= _owners.length,
+            "Invalid number of required confirmations"
+        );
+
+        for (uint i = 0; i < _owners.length; i++) {
+            address owner = _owners[i];
+            require(owner != address(0), "Invalid owner");
+            require(!isOwner[owner], "Owner not unique");
+            isOwner[owner] = true;
+            owners.push(owner);
+        }
+
+        requiredConfirmations = _requiredConfirmations;
+    }
+
+    function submitTransaction(address _to, uint _value, bytes memory _data) public onlyOwner {
+        uint txIndex = transactions.length;
+        transactions.push(Transaction({
+            to: _to,
+            value: _value,
+            data: _data,
+            executed: false,
+            numConfirmations: 0
+        }));
+        emit TransactionSubmitted(txIndex, msg.sender, _to, _value, _data);
+    }
+
+    function confirmTransaction(uint _txIndex) public onlyOwner {
+        Transaction storage transaction = transactions[_txIndex];
+        require(!transaction.executed, "Transaction already executed");
+        require(!confirmations[_txIndex][msg.sender], "Transaction already confirmed");
+
+        confirmations[_txIndex][msg.sender] = true;
+        transaction.numConfirmations += 1;
+        emit TransactionConfirmed(_txIndex, msg.sender);
+    }
+
+    function executeTransaction(uint _txIndex) public onlyOwner {
+        Transaction storage transaction = transactions[_txIndex];
+        require(!transaction.executed, "Transaction already executed");
+        require(transaction.numConfirmations >= requiredConfirmations, "Cannot execute tx: not enough confirmations");
+
+        transaction.executed = true;
+
+        (bool success, ) = transaction.to.call{value: transaction.value}(transaction.data);
+        require(success, "Transaction failed");
+
+        emit TransactionExecuted(_txIndex);
+    }
+
+    function revokeConfirmation(uint _txIndex) public onlyOwner {
+        Transaction storage transaction = transactions[_txIndex];
+        require(!transaction.executed, "Transaction already executed");
+        require(confirmations[_txIndex][msg.sender], "Transaction not confirmed");
+
+        confirmations[_txIndex][msg.sender] = false;
+        transaction.numConfirmations -= 1;
+        emit TransactionRevoked(_txIndex, msg.sender);
+    }
+}
+```
+
+## !!steps Función receive para recibir ETH
+Añadimos la función `receive()` para permitir que el contrato reciba ETH directamente. Sin esta función, las transferencias de ETH al contrato fallarían. Esto es esencial para que los propietarios puedan depositar fondos en la billetera multisig.
+
+```solidity ! MultisigWallet.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.29;
+
+contract MultisigWallet {
+    address[] public owners;
+    uint public requiredConfirmations;
+    mapping(address => bool) public isOwner;
+
+    struct Transaction {
+        address to;
+        uint value;
+        bytes data;
+        bool executed;
+        uint numConfirmations;
+    }
+
+    Transaction[] public transactions;
+    mapping(uint => mapping(address => bool)) public confirmations;
+
+    event TransactionSubmitted(uint indexed txIndex, address indexed owner, address to, uint value, bytes data);
+    event TransactionConfirmed(uint indexed txIndex, address indexed owner);
+    event TransactionRevoked(uint indexed txIndex, address indexed owner);
+    event TransactionExecuted(uint indexed txIndex);
+
+    modifier onlyOwner() {
+        require(isOwner[msg.sender], "Not owner");
+        _;
+    }
+
+    constructor(address[] memory _owners, uint _requiredConfirmations) {
+        require(_owners.length > 0, "Owners required");
+        require(
+            _requiredConfirmations > 0 && _requiredConfirmations <= _owners.length,
+            "Invalid number of required confirmations"
+        );
+
+        for (uint i = 0; i < _owners.length; i++) {
+            address owner = _owners[i];
+            require(owner != address(0), "Invalid owner");
+            require(!isOwner[owner], "Owner not unique");
+            isOwner[owner] = true;
+            owners.push(owner);
+        }
+
+        requiredConfirmations = _requiredConfirmations;
+    }
+
+    receive() external payable {}
+
+    function submitTransaction(address _to, uint _value, bytes memory _data) public onlyOwner {
+        uint txIndex = transactions.length;
+        transactions.push(Transaction({
+            to: _to,
+            value: _value,
+            data: _data,
+            executed: false,
+            numConfirmations: 0
+        }));
+        emit TransactionSubmitted(txIndex, msg.sender, _to, _value, _data);
+    }
+
+    function confirmTransaction(uint _txIndex) public onlyOwner {
+        Transaction storage transaction = transactions[_txIndex];
+        require(!transaction.executed, "Transaction already executed");
+        require(!confirmations[_txIndex][msg.sender], "Transaction already confirmed");
+
+        confirmations[_txIndex][msg.sender] = true;
+        transaction.numConfirmations += 1;
+        emit TransactionConfirmed(_txIndex, msg.sender);
+    }
+
+    function executeTransaction(uint _txIndex) public onlyOwner {
+        Transaction storage transaction = transactions[_txIndex];
+        require(!transaction.executed, "Transaction already executed");
+        require(transaction.numConfirmations >= requiredConfirmations, "Cannot execute tx: not enough confirmations");
+
+        transaction.executed = true;
+
+        (bool success, ) = transaction.to.call{value: transaction.value}(transaction.data);
+        require(success, "Transaction failed");
+
+        emit TransactionExecuted(_txIndex);
+    }
+
+    function revokeConfirmation(uint _txIndex) public onlyOwner {
+        Transaction storage transaction = transactions[_txIndex];
+        require(!transaction.executed, "Transaction already executed");
+        require(confirmations[_txIndex][msg.sender], "Transaction not confirmed");
+
+        confirmations[_txIndex][msg.sender] = false;
+        transaction.numConfirmations -= 1;
+        emit TransactionRevoked(_txIndex, msg.sender);
+    }
+}
+```
+
+## !outro MultisigWallet.sol
+Hemos completado el contrato `MultisigWallet.sol`. Este contrato permite la gestión segura de fondos a través de múltiples firmas, proporcionando un mayor control y seguridad en la ejecución de transacciones. Las mejoras principales incluyen: validaciones en el constructor (direcciones no nulas, propietarios únicos, número de confirmaciones válido), un modificador `onlyOwner` para control de acceso, prevención de confirmaciones duplicadas, eventos para trazabilidad, el patrón **Checks-Effects-Interactions** en la ejecución de transacciones (marcar como ejecutada antes de la llamada externa), y la función `receive()` para aceptar depósitos de ETH.
