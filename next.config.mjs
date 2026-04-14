@@ -5,6 +5,8 @@ import createMDX from "@next/mdx"
 const nextConfig = {
   // Configure `pageExtensions`` to include MDX files
   pageExtensions: ["js", "jsx", "mdx", "ts", "tsx"],
+  // Base path for deployment under /solhikes subdirectory
+  basePath: '/solhikes',
   // Optionally, add any other Next.js config below
 }
 
